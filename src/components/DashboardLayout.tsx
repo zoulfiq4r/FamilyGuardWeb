@@ -104,6 +104,7 @@ export function DashboardLayout({ children, activeTab, onTabChange, selectedChil
             size="sm"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="rounded-xl"
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
           >
             {sidebarOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </Button>
