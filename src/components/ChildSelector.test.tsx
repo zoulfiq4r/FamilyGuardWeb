@@ -101,6 +101,7 @@ describe("ChildSelector", () => {
   it("removes a child when confirmed and surfaces errors", async () => {
     const confirmSpy = jest.spyOn(window, "confirm").mockReturnValue(true);
     mockDeleteDoc.mockRejectedValueOnce(new Error("permission denied"));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
     const user = userEvent;
 
@@ -119,5 +120,6 @@ describe("ChildSelector", () => {
     expect(confirmSpy).toHaveBeenCalled();
 
     confirmSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 });

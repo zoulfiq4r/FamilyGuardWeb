@@ -96,7 +96,11 @@
       "<rootDir>/src/reportWebVitals.ts",
       "<rootDir>/src/components/AppManagement.tsx",
       "<rootDir>/src/components/ReportsAnalytics.tsx"
-    ]
+    ],
+    "moduleNameMapper": {
+      "^.+\\.(css|less|sass|scss)$": "<rootDir>/src/test/styleMock.ts",
+      "^.+\\.(png|jpg|jpeg|gif|webp|svg)$": "<rootDir>/src/test/fileMock.ts"
+    }
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
