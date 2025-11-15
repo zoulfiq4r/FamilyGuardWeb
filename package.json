@@ -95,7 +95,8 @@
       "<rootDir>/src/index.tsx",
       "<rootDir>/src/reportWebVitals.ts",
       "<rootDir>/src/components/AppManagement.tsx",
-      "<rootDir>/src/components/ReportsAnalytics.tsx"
+      "<rootDir>/src/components/ReportsAnalytics.tsx",
+      "<rootDir>/src/test/"
     ],
     "moduleNameMapper": {
       "^.+\\.(css|less|sass|scss)$": "<rootDir>/src/test/styleMock.ts",

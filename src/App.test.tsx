@@ -11,10 +11,21 @@ jest.mock("./components/AuthScreen", () => ({
   AuthScreen: () => <div data-testid="auth-screen">Auth Screen</div>,
 }));
 
+type DashboardLayoutMockProps = {
+  children: ReactNode;
+  activeTab: string;
+  onTabChange: (tab: string) => void;
+  selectedChild: string | null;
+  onChildChange: (childId: string | null) => void;
+};
+
+let dashboardLayoutProps: DashboardLayoutMockProps | null = null;
+
 jest.mock("./components/DashboardLayout", () => ({
-  DashboardLayout: ({ children }: { children: ReactNode }) => (
-    <div data-testid="dashboard-layout">{children}</div>
-  ),
+  DashboardLayout: (props: DashboardLayoutMockProps) => {
+    dashboardLayoutProps = props;
+    return <div data-testid="dashboard-layout">{props.children}</div>;
+  },
 }));
 
 jest.mock("./components/DashboardHome", () => ({
@@ -70,6 +81,7 @@ describe("App", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     childSelectorProps = null;
+    dashboardLayoutProps = null;
   });
 
   it("shows loading state while waiting for auth resolution", () => {
@@ -133,5 +145,56 @@ describe("App", () => {
     });
 
     expect(await screen.findByTestId("dashboard-home")).toHaveTextContent("child-456");
+  });
+
+  it("routes the user to pairing when ChildSelector requests it", async () => {
+    const mockUser = { uid: "user-abc" };
+    mockOnAuthStateChanged.mockImplementation((_, callback) => {
+      callback(mockUser);
+      return jest.fn();
+    });
+
+    render(<App />);
+
+    expect(childSelectorProps).not.toBeNull();
+    act(() => {
+      childSelectorProps?.onCreateNew?.();
+    });
+
+    expect(screen.getByTestId("pairing-code-generator")).toHaveTextContent("Pairing for user-abc");
+  });
+
+  it("renders other tab panels when DashboardLayout requests them", async () => {
+    const mockUser = { uid: "user-tabs" };
+    mockOnAuthStateChanged.mockImplementation((_, callback) => {
+      callback(mockUser);
+      return jest.fn();
+    });
+
+    render(<App />);
+    await act(async () => {
+      childSelectorProps?.onSelectChild("child-tabs");
+    });
+    await screen.findByTestId("dashboard-home");
+
+    await act(async () => {
+      dashboardLayoutProps?.onTabChange("location");
+    });
+    expect(await screen.findByTestId("location-tracking")).toBeInTheDocument();
+
+    await act(async () => {
+      dashboardLayoutProps?.onTabChange("apps");
+    });
+    expect(await screen.findByTestId("app-management")).toBeInTheDocument();
+
+    await act(async () => {
+      dashboardLayoutProps?.onTabChange("reports");
+    });
+    expect(await screen.findByTestId("reports-analytics")).toBeInTheDocument();
+
+    await act(async () => {
+      dashboardLayoutProps?.onTabChange("settings");
+    });
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
   });
 });

@@ -54,4 +54,36 @@ describe("LocationTracking", () => {
       "map-child:child-999-name:Sasha"
     );
   });
+
+  it("logs and keeps the default name when Firestore rejects", async () => {
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    mockGetDoc.mockRejectedValueOnce(new Error("firestore down"));
+
+    render(<LocationTracking childId="child-err" />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Real-time location monitoring for Child/i)).toBeInTheDocument()
+    );
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
+  });
+
+  it("skips Firestore lookups when no child id is provided", () => {
+    render(<LocationTracking childId="" />);
+    expect(screen.getByText(/Real-time location monitoring for Child/i)).toBeInTheDocument();
+    expect(mockGetDoc).not.toHaveBeenCalled();
+  });
+
+  it("falls back to 'Child' when Firestore omits a name", async () => {
+    mockGetDoc.mockResolvedValue({
+      exists: () => true,
+      data: () => ({}),
+    });
+
+    render(<LocationTracking childId="child-no-name" />);
+
+    await waitFor(() =>
+      expect(screen.getByText(/Real-time location monitoring for Child/i)).toBeInTheDocument()
+    );
+  });
 });
