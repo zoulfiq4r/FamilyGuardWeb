@@ -3,5 +3,3 @@
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
 ![Firebase](https://img.shields.io/badge/Firebase-039BE5?logo=firebase)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript)
-![Last Commit](https://img.shields.io/github/last-commit/zoulfiq4r/FamilyGuardWeb)
-![Issues](https://img.shields.io/github/issues/zoulfiq4r/FamilyGuardWeb)
