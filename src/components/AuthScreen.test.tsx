@@ -129,4 +129,47 @@ describe("AuthScreen", () => {
     expect(mockCollection).toHaveBeenCalledWith({ mocked: true }, "users");
     expect(mockServerTimestamp).toHaveBeenCalled();
   });
+
+  it("surfaced login errors from Firebase auth", async () => {
+    const user = userEvent;
+    mockSignIn.mockRejectedValueOnce(new Error("invalid credentials"));
+
+    renderAuth();
+    await user.type(screen.getByLabelText(/Email/i), "parent@example.com");
+    await user.type(screen.getByLabelText("Password"), "hunter2");
+    await user.click(screen.getByRole("button", { name: /Sign In/i }));
+
+    expect(await screen.findByText(/invalid credentials/i)).toBeInTheDocument();
+  });
+
+  it("validates the minimum password length before registering", async () => {
+    const user = userEvent;
+
+    renderAuth();
+    await user.click(screen.getByRole("button", { name: /Need an account\? Register/i }));
+
+    await user.type(screen.getByLabelText(/Email/i), "parent@example.com");
+    await user.type(screen.getByLabelText(/^Password$/i), "123");
+    await user.type(screen.getByLabelText(/Confirm Password/i), "123");
+    await user.click(screen.getByRole("button", { name: /Create Account/i }));
+
+    expect(screen.getByText(/Password must be at least 6 characters/i)).toBeInTheDocument();
+    expect(mockCreateUser).not.toHaveBeenCalled();
+  });
+
+  it("displays registration errors when Firestore rejects", async () => {
+    const user = userEvent;
+    mockCreateUser.mockRejectedValueOnce(new Error("email exists"));
+
+    renderAuth();
+    await user.click(screen.getByRole("button", { name: /Need an account\? Register/i }));
+
+    await user.type(screen.getByLabelText(/Parent Name/i), "Jamie");
+    await user.type(screen.getByLabelText(/Email/i), "jamie@example.com");
+    await user.type(screen.getByLabelText(/^Password$/i), "secret1");
+    await user.type(screen.getByLabelText(/Confirm Password/i), "secret1");
+    await user.click(screen.getByRole("button", { name: /Create Account/i }));
+
+    expect(await screen.findByText(/email exists/i)).toBeInTheDocument();
+  });
 });

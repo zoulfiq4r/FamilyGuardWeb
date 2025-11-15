@@ -97,5 +97,32 @@ describe("LiveLocationMap helper utilities", () => {
       });
       expect(normalized?.timestamp).toEqual(timestamp);
     });
+
+    it("uses fallbacks for accuracy, timestamps, and mock flags", () => {
+      const normalized = normalizeLocationRecord("loc-2", {
+        latitude: 51.5,
+        longitude: 0.12,
+        verticalAccuracy: 7,
+        mocked: true,
+        recordedAt: 1710000000000,
+      });
+
+      expect(normalized).toBeTruthy();
+      expect(normalized?.accuracy).toBe(0);
+      expect(normalized?.providerAccuracy).toBe(7);
+      expect(normalized?.isMock).toBe(true);
+      expect(normalized?.timestamp).toBeInstanceOf(Date);
+    });
+
+    it("falls back to the current time when no timestamp fields exist", () => {
+      const normalized = normalizeLocationRecord("loc-3", {
+        latitude: 10,
+        longitude: 10,
+        accuracy: 2,
+      });
+
+      expect(normalized).toBeTruthy();
+      expect(normalized?.timestamp).toBeInstanceOf(Date);
+    });
   });
 });

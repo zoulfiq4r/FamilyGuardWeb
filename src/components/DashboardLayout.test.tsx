@@ -70,4 +70,61 @@ describe("DashboardLayout", () => {
     await user.click(screen.getByRole("button", { name: /Collapse sidebar/i }));
     expect(screen.queryByText("FamilyGuard")).not.toBeInTheDocument();
   });
+
+  it("falls back to a generic child label when Firestore errors", async () => {
+    const onChildChange = jest.fn();
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    mockGetDoc.mockRejectedValueOnce(new Error("offline"));
+
+    render(
+      <DashboardLayout
+        activeTab="dashboard"
+        onTabChange={jest.fn()}
+        selectedChild="child-offline"
+        onChildChange={onChildChange}
+      >
+        <div>content</div>
+      </DashboardLayout>
+    );
+
+    await waitFor(() => expect(screen.getByText("Child")).toBeInTheDocument());
+    errorSpy.mockRestore();
+  });
+
+  it("keeps the default label when the child document does not exist", async () => {
+    mockGetDoc.mockResolvedValueOnce({ exists: () => false });
+
+    render(
+      <DashboardLayout
+        activeTab="dashboard"
+        onTabChange={jest.fn()}
+        selectedChild="child-missing"
+        onChildChange={jest.fn()}
+      >
+        <div>content</div>
+      </DashboardLayout>
+    );
+
+    await waitFor(() => expect(mockGetDoc).toHaveBeenCalled());
+  });
+
+  it("uses the fallback label when the child document omits a name", async () => {
+    mockGetDoc.mockResolvedValueOnce({
+      exists: () => true,
+      data: () => ({}),
+    });
+
+    render(
+      <DashboardLayout
+        activeTab="dashboard"
+        onTabChange={jest.fn()}
+        selectedChild="child-empty"
+        onChildChange={jest.fn()}
+      >
+        <div>content</div>
+      </DashboardLayout>
+    );
+
+    await waitFor(() => expect(screen.getByText("Child")).toBeInTheDocument());
+  });
 });

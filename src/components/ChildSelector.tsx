@@ -137,6 +137,7 @@ export function ChildSelector({ parentId, onSelectChild, onCreateNew }: ChildSel
               }}
               disabled={refreshing}
               className="h-8 w-8 p-0"
+              aria-label="Refresh child list"
             >
               <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             </Button>
@@ -260,4 +261,3 @@ export function ChildSelector({ parentId, onSelectChild, onCreateNew }: ChildSel
     </div>
   );
 }
-

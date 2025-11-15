@@ -120,6 +120,10 @@ function findLongestDay(entries: UsageHistoryEntry[]): UsageHistoryEntry | null 
   });
 }
 
+const formatHoursTooltip = (value: number) => `${value}h`;
+const formatPieTooltip = (value: number) => formatMinutes(value);
+const formatLineTooltip = (value: number) => `${value}m`;
+
 export function DashboardHome({ childId }: DashboardHomeProps) {
   const telemetry = useChildTelemetry(childId);
 
@@ -343,7 +347,7 @@ export function DashboardHome({ childId }: DashboardHomeProps) {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis dataKey="day" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" unit="h" />
-                  <Tooltip formatter={(value: number) => `${value}h`} />
+                  <Tooltip formatter={formatHoursTooltip} />
                   <Bar dataKey="hours" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -379,7 +383,7 @@ export function DashboardHome({ childId }: DashboardHomeProps) {
                     ))}
                   </Pie>
                   <Legend />
-                  <Tooltip formatter={(value: number) => formatMinutes(value)} />
+                  <Tooltip formatter={formatPieTooltip} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -406,7 +410,7 @@ export function DashboardHome({ childId }: DashboardHomeProps) {
                   <CartesianGrid stroke="#f3f4f6" />
                   <XAxis dataKey="label" stroke="#6b7280" />
                   <YAxis stroke="#6b7280" unit="m" />
-                  <Tooltip formatter={(value: number) => `${value}m`} />
+                  <Tooltip formatter={formatLineTooltip} />
                   <Line
                     type="monotone"
                     dataKey="minutes"
@@ -456,3 +460,13 @@ export function DashboardHome({ childId }: DashboardHomeProps) {
     </div>
   );
 }
+
+export const __TESTING__ = {
+  formatMinutes,
+  formatRelativeTime,
+  formatHourLabel,
+  findLongestDay,
+  formatHoursTooltip,
+  formatPieTooltip,
+  formatLineTooltip,
+};
