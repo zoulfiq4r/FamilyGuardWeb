@@ -19,8 +19,6 @@ FamilyGuard is a parent-facing control center for the companion mobile app. It a
 
 ## Screenshots
 
-> Replace the placeholder paths with actual screenshots or Loom GIFs before publishing.
-
 ![Dashboard Preview](docs/screenshots/dashboard.png "Dashboard preview")
 ![Live Location](docs/screenshots/location.png "Live location view")
 
