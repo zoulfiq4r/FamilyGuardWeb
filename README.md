@@ -1,17 +1,15 @@
 # FamilyGuard Parent Dashboard
 
 [![codecov](https://codecov.io/github/zoulfiq4r/FamilyGuardWeb/graph/badge.svg?token=Os1XSVMQc7)](https://codecov.io/github/zoulfiq4r/FamilyGuardWeb)
-<<<<<<< HEAD
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
-![Firebase](https://img.shields.io/badge/Firebase-039BE5?logo=firebase)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript)
-=======
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178C6?logo=typescript&logoColor=white)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%26%20Firestore-FFCA28?logo=firebase&logoColor=black)
-![Status](https://img.shields.io/badge/status-active-success)
+![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript)
 ![License: MIT](https://img.shields.io/badge/license-MIT-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178C6?logo=typescript&logoColor=white)
+
+=======
+
 
 > A production-ready React + Firebase dashboard that helps parents monitor device usage, location, and app health across their family.
 
