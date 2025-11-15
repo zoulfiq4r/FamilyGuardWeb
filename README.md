@@ -10,7 +10,6 @@
 
 =======
 
-
 > A production-ready React + Firebase dashboard that helps parents monitor device usage, location, and app health across their family.
 
 ## Overview
@@ -37,7 +36,6 @@ FamilyGuard is a parent-facing control center for the companion mobile app. It a
 - [Troubleshooting](#troubleshooting)
 - [Future Improvements](#future-improvements)
 - [Contributing](#contributing)
-- [License](#license)
 - [Contact / Author](#contact--author)
 
 ## Key Features
@@ -148,7 +146,7 @@ Although there is no custom REST API, the app consumes Firestore collections as 
 ### Installation
 
 ```bash
-git clone https://github.com/<your-org>/parent-dashboard.git
+git clone https://github.com/zoulfiq4r/parent-dashboard.git
 cd parent-dashboard
 npm install
 ```
@@ -225,4 +223,3 @@ Contributions are welcome! Please open an issue or pull request with a clear des
 **Zoulfiqar** — [@zoulfiq4r](https://github.com/zoulfiq4r)
 
 Feel free to reach out for collaborations, product questions, or recruiter inquiries.
->>>>>>> b4ef148 ( hello world)
