@@ -8,8 +8,6 @@
 ![License: MIT](https://img.shields.io/badge/license-MIT-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178C6?logo=typescript&logoColor=white)
 
-=======
-
 > A production-ready React + Firebase dashboard that helps parents monitor device usage, location, and app health across their family.
 
 ## Overview
