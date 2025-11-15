@@ -83,6 +83,21 @@
       "last 1 safari version"
     ]
   },
+  "jest": {
+    "transformIgnorePatterns": [
+      "node_modules/(?!react-leaflet|@react-leaflet)"
+    ],
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "<rootDir>/src/components/ui/",
+      "<rootDir>/src/hooks/",
+      "<rootDir>/src/config/firebase.ts",
+      "<rootDir>/src/index.tsx",
+      "<rootDir>/src/reportWebVitals.ts",
+      "<rootDir>/src/components/AppManagement.tsx",
+      "<rootDir>/src/components/ReportsAnalytics.tsx"
+    ]
+  },
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/leaflet": "^1.9.21",
