@@ -5,7 +5,6 @@
 ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=61DAFB)
 ![Firebase](https://img.shields.io/badge/Firebase-Auth%20%26%20Firestore-FFCA28?logo=firebase&logoColor=black)
 ![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript)
-![License: MIT](https://img.shields.io/badge/license-MIT-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9-3178C6?logo=typescript&logoColor=white)
 
 > A production-ready React + Firebase dashboard that helps parents monitor device usage, location, and app health across their family.
