@@ -219,9 +219,6 @@ npm test -- --coverage
 
 Contributions are welcome! Please open an issue or pull request with a clear description of the enhancement or bug fix. Keep PRs focused, include relevant screenshots/gifs when changing UI, and add tests when possible.
 
-## License
-
-Distributed under the **MIT License**. See `LICENSE` (add one if it does not exist yet) for more information.
 
 ## Contact / Author
 
