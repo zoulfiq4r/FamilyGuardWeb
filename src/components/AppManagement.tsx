@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { 
   Smartphone, 
@@ -17,13 +17,14 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import { collection, doc, getDoc, onSnapshot, updateDoc } from "firebase/firestore";
-import { db } from "../config/firebase";
+import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { auth, db } from "../config/firebase";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Switch } from "./ui/switch";
 import { Badge } from "./ui/badge";
+import { Textarea } from "./ui/textarea";
 import {
   Select,
   SelectContent,
@@ -92,6 +93,8 @@ const DEFAULT_ICON_CONFIG = {
       color: "text-blue-500",
   bgColor: "bg-blue-100",
 };
+
+const BLOCK_MESSAGE_PLACEHOLDER = "Suggest that your child do homework.";
 
 function formatDuration(totalMinutes: number): string {
   if (!totalMinutes || Number.isNaN(totalMinutes)) {
@@ -265,6 +268,10 @@ function extractDate(value: unknown): Date | undefined {
   return undefined;
 }
 
+function getAppControlDocId(app: NormalizedApp): string {
+  return app.packageName ?? app.id;
+}
+
 export function AppManagement({ childId }: AppManagementProps) {
   const [childName, setChildName] = useState("Child");
   const [apps, setApps] = useState<NormalizedApp[]>([]);
@@ -274,9 +281,57 @@ export function AppManagement({ childId }: AppManagementProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<AppStatus | "all">("all");
   const [updatingAppId, setUpdatingAppId] = useState<string | null>(null);
+  const [blockMessageDrafts, setBlockMessageDrafts] = useState<Record<string, string>>({});
+  const [blockMessageSaving, setBlockMessageSaving] = useState<Record<string, boolean>>({});
+  const [blockMessageErrors, setBlockMessageErrors] = useState<Record<string, string | undefined>>({});
+  const blockMessageDirtyRef = useRef<Record<string, boolean>>({});
+  const familyId = auth.currentUser?.uid ?? null;
+  const latestFamilyMessagesRef = useRef<Record<string, string>>({});
+  const latestLegacyMessagesRef = useRef<Record<string, string>>({});
   const { currentApp } = useChildCurrentApp(childId);
   const normalizedActivePackage = currentApp?.packageName?.toLowerCase();
   const normalizedActiveName = currentApp?.name?.toLowerCase();
+
+  const syncBlockMessageDrafts = useCallback(() => {
+    setBlockMessageDrafts((prev) => {
+      const resolvedDocIds = new Set([
+        ...Object.keys(latestFamilyMessagesRef.current),
+        ...Object.keys(latestLegacyMessagesRef.current),
+      ]);
+
+      let changed = false;
+      const next = { ...prev };
+
+      resolvedDocIds.forEach((docId) => {
+        const serverValue =
+          latestFamilyMessagesRef.current[docId] ?? latestLegacyMessagesRef.current[docId] ?? "";
+
+        if (blockMessageDirtyRef.current[docId]) {
+          return;
+        }
+
+        if (!serverValue && docId in next) {
+          delete next[docId];
+          changed = true;
+          return;
+        }
+
+        if (serverValue && next[docId] !== serverValue) {
+          next[docId] = serverValue;
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((docId) => {
+        if (!resolvedDocIds.has(docId) && !blockMessageDirtyRef.current[docId]) {
+          delete next[docId];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, []);
 
   useEffect(() => {
     const fetchChildName = async () => {
@@ -300,6 +355,72 @@ export function AppManagement({ childId }: AppManagementProps) {
 
     fetchChildName();
   }, [childId]);
+
+  useEffect(() => {
+    setBlockMessageDrafts({});
+    setBlockMessageSaving({});
+    setBlockMessageErrors({});
+    blockMessageDirtyRef.current = {};
+    latestFamilyMessagesRef.current = {};
+    latestLegacyMessagesRef.current = {};
+
+    if (!childId) {
+      return;
+    }
+
+    const unsubscribers: Array<() => void> = [];
+
+    const attachListener = (
+      colPath: Array<string>,
+      dest: "family" | "legacy"
+    ) => {
+      const colRef = collection(db, ...(colPath as [string, ...string[]]));
+      const unsubscribe = onSnapshot(
+        colRef,
+        (snapshot) => {
+          const serverValues: Record<string, string> = {};
+          snapshot.forEach((docSnapshot) => {
+            const data = docSnapshot.data() as { blockMessage?: unknown };
+            const value = typeof data.blockMessage === "string" ? data.blockMessage : "";
+            if (value) {
+              serverValues[docSnapshot.id] = value;
+            }
+          });
+
+          if (dest === "family") {
+            latestFamilyMessagesRef.current = serverValues;
+          } else {
+            latestLegacyMessagesRef.current = serverValues;
+          }
+
+          syncBlockMessageDrafts();
+        },
+        (err) => {
+          console.error(
+            `AppManagement: failed to fetch ${dest} block messages`,
+            err
+          );
+        }
+      );
+
+      unsubscribers.push(unsubscribe);
+    };
+
+    if (familyId) {
+      attachListener(
+        ["families", familyId, "children", childId, "appControls"],
+        "family"
+      );
+    } else {
+      latestFamilyMessagesRef.current = {};
+    }
+
+    attachListener(["children", childId, "appControls"], "legacy");
+
+    return () => {
+      unsubscribers.forEach((fn) => fn());
+    };
+  }, [childId, familyId, syncBlockMessageDrafts]);
 
   useEffect(() => {
     if (!childId) {
@@ -399,6 +520,128 @@ export function AppManagement({ childId }: AppManagementProps) {
     };
   }, [apps]);
 
+  const handleBlockMessageChange = (docId: string, value: string) => {
+    if (value.length > 120) {
+      return;
+    }
+
+    blockMessageDirtyRef.current[docId] = true;
+    setBlockMessageDrafts((prev) => ({
+      ...prev,
+      [docId]: value,
+    }));
+
+    setBlockMessageErrors((prev) => {
+      if (!prev[docId]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
+  };
+
+  const handleBlockMessageSave = async (app: NormalizedApp) => {
+    if (!childId) {
+      console.warn("AppManagement: Missing child identifier for block message save");
+      return;
+    }
+
+    const docId = getAppControlDocId(app);
+    const currentValue = blockMessageDrafts[docId] ?? "";
+
+    if (currentValue.length > 120) {
+      setBlockMessageErrors((prev) => ({
+        ...prev,
+        [docId]: "Block message must be 120 characters or fewer.",
+      }));
+      return;
+    }
+
+    const trimmedValue = currentValue.trim();
+
+    setBlockMessageErrors((prev) => {
+      if (!prev[docId]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[docId];
+      return next;
+    });
+
+    setBlockMessageSaving((prev) => ({
+      ...prev,
+      [docId]: true,
+    }));
+
+    try {
+      const writes: Array<Promise<unknown>> = [];
+
+      if (familyId) {
+        const familyDocRef = doc(
+          db,
+          "families",
+          familyId,
+          "children",
+          childId,
+          "appControls",
+          docId
+        );
+
+        writes.push(
+          setDoc(
+            familyDocRef,
+            {
+              blockMessage: trimmedValue,
+            },
+            { merge: true }
+          )
+        );
+      } else {
+        console.warn(
+          "AppManagement: Saving legacy-only block message because no familyId is available"
+        );
+      }
+
+      const legacyDocRef = doc(db, "children", childId, "appControls", docId);
+      writes.push(
+        setDoc(
+          legacyDocRef,
+          {
+            blockMessage: trimmedValue,
+          },
+          { merge: true }
+        )
+      );
+
+      await Promise.all(writes);
+
+      blockMessageDirtyRef.current[docId] = false;
+      setBlockMessageDrafts((prev) => ({
+        ...prev,
+        [docId]: trimmedValue,
+      }));
+    } catch (err) {
+      console.error("AppManagement: failed to save block message", err);
+      setBlockMessageErrors((prev) => ({
+        ...prev,
+        [docId]: "Unable to save block message. Please try again.",
+      }));
+    } finally {
+      setBlockMessageSaving((prev) => {
+        if (!prev[docId]) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[docId];
+        return next;
+      });
+    }
+  };
+
   const handleToggleApp = async (app: NormalizedApp, nextChecked: boolean) => {
     if (!childId) {
       return;
@@ -411,10 +654,21 @@ export function AppManagement({ childId }: AppManagementProps) {
 
     try {
       const appDocRef = doc(db, "children", childId, "apps", app.id);
-      await updateDoc(appDocRef, {
+      const updates: Record<string, any> = {
         status: nextStatus,
         isBlocked: nextStatus === "blocked",
-      });
+        "status.enforced": nextStatus === "blocked",
+        "status.lastEnforcedChildId": childId,
+        "status.lastEnforcedMethod": "dashboard",
+        "status.lastEnforcedAt": serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      if (nextStatus === "allowed") {
+        updates["status.lastEnforcedMethod"] = "dashboard-unblock";
+      }
+
+      await updateDoc(appDocRef, updates);
     } catch (err) {
       console.error("AppManagement: failed to update app status", err);
       setActionError("We couldn't update that app. Please try again.");
@@ -631,78 +885,129 @@ export function AppManagement({ childId }: AppManagementProps) {
                 </TableRow>
               ) : (
                 filteredApps.map((app) => {
-                const Icon = app.icon;
+                  const Icon = app.icon;
                   const isActive =
                     (normalizedActivePackage &&
                       app.packageName?.toLowerCase() === normalizedActivePackage) ||
                     (normalizedActiveName &&
                       app.name.toLowerCase() === normalizedActiveName);
-                return (
-                    <TableRow key={app.id} className={app.isBlocked ? "opacity-70" : ""}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                          <div className={`${app.iconBgColor} rounded-xl p-2`}>
-                            <Icon className={`w-5 h-5 ${app.iconColor}`} />
-                          </div>
-                          <div>
-                            <div className="text-gray-800 font-medium flex items-center gap-2">
-                              {app.name}
+                  const controlDocId = getAppControlDocId(app);
+                  const draftMessage = blockMessageDrafts[controlDocId] ?? "";
+                  const messageError = blockMessageErrors[controlDocId];
+                  const isSavingMessage = Boolean(blockMessageSaving[controlDocId]);
+
+                  return (
+                    <Fragment key={app.id}>
+                      <TableRow className={app.isBlocked ? "opacity-70" : ""}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div className={`${app.iconBgColor} rounded-xl p-2`}>
+                              <Icon className={`w-5 h-5 ${app.iconColor}`} />
+                            </div>
+                            <div>
+                              <div className="text-gray-800 font-medium flex items-center gap-2">
+                                {app.name}
+                                {isActive && (
+                                  <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100">
+                                    Currently Active
+                                  </Badge>
+                                )}
+                              </div>
+                              {app.packageName && (
+                                <div className="text-xs text-gray-400">{app.packageName}</div>
+                              )}
                               {isActive && (
-                                <Badge className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100">
-                                  Currently Active
-                                </Badge>
+                                <div className="flex items-center gap-1 text-xs text-emerald-600 mt-1">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                  Live usage from device
+                                </div>
                               )}
                             </div>
-                            {app.packageName && (
-                              <div className="text-xs text-gray-400">{app.packageName}</div>
-                            )}
-                            {isActive && (
-                              <div className="flex items-center gap-1 text-xs text-emerald-600 mt-1">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                Live usage from device
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{app.category}</Badge>
+                        </TableCell>
+                        <TableCell className="text-gray-600">
+                          <div>{app.usageLabel}</div>
+                          {app.lastUsed && (
+                            <div className="text-xs text-gray-400">
+                              Last used {app.lastUsed.toLocaleString()}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={app.isBlocked ? "destructive" : "default"}
+                            className={
+                              app.isBlocked
+                                ? ""
+                                : "bg-green-100 text-green-700 hover:bg-green-200"
+                            }
+                          >
+                            {app.isBlocked ? "Blocked" : "Allowed"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className="text-sm text-gray-500">
+                              {app.isBlocked ? "Blocked" : isActive ? "In Use" : "Allowed"}
+                            </span>
+                            <Switch
+                              checked={!app.isBlocked}
+                              disabled={updatingAppId === app.id}
+                              onCheckedChange={(checked) => handleToggleApp(app, checked)}
+                              className="data-[state=checked]:bg-green-500"
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+
+                      {app.isBlocked && (
+                        <TableRow className="bg-gray-50">
+                          <TableCell colSpan={5}>
+                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:gap-6">
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-sm font-medium text-gray-700">Block Message</p>
+                                  <span className="text-xs text-gray-400">
+                                    {draftMessage.length}/120
+                                  </span>
+                                </div>
+                                <Textarea
+                                  value={draftMessage}
+                                  onChange={(event) =>
+                                    handleBlockMessageChange(controlDocId, event.target.value)
+                                  }
+                                  placeholder={BLOCK_MESSAGE_PLACEHOLDER}
+                                  maxLength={120}
+                                  rows={3}
+                                />
+                                {messageError && (
+                                  <p className="text-xs text-red-500 mt-1">{messageError}</p>
+                                )}
                               </div>
-                            )}
-                          </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{app.category}</Badge>
-                    </TableCell>
-                      <TableCell className="text-gray-600">
-                        <div>{app.usageLabel}</div>
-                        {app.lastUsed && (
-                          <div className="text-xs text-gray-400">
-                            Last used {app.lastUsed.toLocaleString()}
-                          </div>
-                        )}
-                      </TableCell>
-                    <TableCell>
-                      <Badge 
-                          variant={app.isBlocked ? "destructive" : "default"}
-                          className={
-                            app.isBlocked
-                              ? ""
-                              : "bg-green-100 text-green-700 hover:bg-green-200"
-                          }
-                        >
-                          {app.isBlocked ? "Blocked" : "Allowed"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="text-sm text-gray-500">
-                            {app.isBlocked ? "Blocked" : isActive ? "In Use" : "Allowed"}
-                        </span>
-                        <Switch 
-                            checked={!app.isBlocked}
-                            disabled={updatingAppId === app.id}
-                            onCheckedChange={(checked) => handleToggleApp(app, checked)}
-                          className="data-[state=checked]:bg-green-500"
-                        />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
+                              <div className="flex flex-col gap-2 min-w-[180px]">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="whitespace-nowrap"
+                                  onClick={() => handleBlockMessageSave(app)}
+                                  disabled={isSavingMessage}
+                                >
+                                  {isSavingMessage ? "Saving..." : "Save Message"}
+                                </Button>
+                                <p className="text-xs text-gray-500">
+                                  Customize what appears on your child&apos;s device when this app is
+                                  blocked.
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </Fragment>
+                  );
                 })
               )}
             </TableBody>
