@@ -1,5 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { useEffect, useMemo, useState, useRef } from "react";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  query,
+  limit,
+  documentId,
+  where,
+} from "firebase/firestore";
 import { db } from "../config/firebase";
 
 interface FirestoreTimestamp {
@@ -301,6 +309,124 @@ function normalizeUsageHistory(id: string, data: Record<string, unknown>): Usage
   };
 }
 
+// Fallback normalization for existing daily aggregate docs at appUsageAggregates/{childId_YYYY-MM-DD}
+function normalizeDailyAggregateDoc(id: string, data: Record<string, unknown>): UsageHistoryEntry {
+  // Attempt to parse date from id suffix or from fields
+  const parts = id.split("_");
+  const datePart = parts.length > 1 ? parts[parts.length - 1] : undefined;
+  const parsedFromId = datePart ? new Date(datePart) : undefined;
+  const dateValue =
+    toDate((data as any).date) ||
+    (parsedFromId && !Number.isNaN(parsedFromId.valueOf()) ? parsedFromId : new Date());
+
+  // First try to get totalDurationMs from root
+  let totalMinutes = 0;
+  const totalDurationMs = (data as any).totalDurationMs;
+  if (typeof totalDurationMs === "number" && totalDurationMs > 0) {
+    totalMinutes = totalDurationMs / 60000;
+  } else {
+    // Fallback: sum individual app durations
+    const apps = (data as any).apps as Record<string, any> | undefined;
+    if (apps && typeof apps === "object") {
+      for (const key of Object.keys(apps)) {
+        const row = apps[key];
+        const ms =
+          typeof row?.durationMs === "number"
+            ? row.durationMs
+            : typeof row?.durationMs === "string"
+            ? parseFloat(row.durationMs)
+            : typeof row?.duration === "number"
+            ? row.duration
+            : typeof row?.durationSeconds === "number"
+            ? row.durationSeconds * 1000
+            : 0;
+        totalMinutes += ms / 60000;
+      }
+    }
+  }
+
+  const dayLabel = dateValue.toLocaleDateString(undefined, { weekday: "short" });
+
+  return {
+    id,
+    date: formatDateKey(dateValue),
+    totalMinutes,
+    hourly: [],
+    dayLabel,
+    dateValue: dateValue.getTime(),
+    raw: data,
+  };
+}
+
+function aggregateFromDailyDoc(data: Record<string, unknown>): AppUsageAggregate {
+  const apps = (data as any).apps as Record<string, any> | undefined;
+  let totalMinutes = 0;
+  const categoryTotalsMap = new Map<string, number>();
+  const topAppsArr: AggregateTopApp[] = [];
+  let updatedAt: Date | null = null;
+
+  // Try to get total from root first
+  const totalDurationMs = (data as any).totalDurationMs;
+  if (typeof totalDurationMs === "number" && totalDurationMs > 0) {
+    totalMinutes = totalDurationMs / 60000;
+  }
+
+  if (apps && typeof apps === "object") {
+    Object.keys(apps).forEach((key, index) => {
+      const row = apps[key] || {};
+      const appName =
+        (typeof row.appName === "string" && row.appName) ||
+        (typeof row.name === "string" && row.name) ||
+        key;
+      const category =
+        (typeof row.category === "string" && row.category) || "Unknown";
+      const ms =
+        typeof row.durationMs === "number"
+          ? row.durationMs
+          : typeof row.durationMs === "string"
+          ? parseFloat(row.durationMs)
+          : typeof row.duration === "number"
+          ? row.duration
+          : typeof row.durationSeconds === "number"
+          ? row.durationSeconds * 1000
+          : 0;
+      const minutes = ms / 60000;
+      totalMinutes += minutes;
+
+      const current = categoryTotalsMap.get(category) || 0;
+      categoryTotalsMap.set(category, current + minutes);
+
+      topAppsArr.push({
+        id: key,
+        name: appName,
+        packageName:
+          (typeof row.packageName === "string" && row.packageName) || key,
+        minutes,
+        category,
+        iconUrl: undefined,
+      });
+
+      const lastUsed = toDate((row as any).lastUsed);
+      if (lastUsed && (!updatedAt || lastUsed > updatedAt)) {
+        updatedAt = lastUsed;
+      }
+    });
+  }
+
+  topAppsArr.sort((a, b) => b.minutes - a.minutes);
+
+  return {
+    totalMinutes,
+    averageDailyMinutes: undefined,
+    categoryTotals: Array.from(categoryTotalsMap.entries()).map(([category, minutes]) => ({
+      category,
+      minutes,
+    })),
+    topApps: topAppsArr.slice(0, 10),
+    updatedAt,
+  };
+}
+
 function normalizeAggregate(data: Record<string, unknown>): AppUsageAggregate {
   const totalMinutes =
     (typeof data.totalMinutes === "number" && data.totalMinutes) ||
@@ -543,6 +669,54 @@ export function useChildUsageHistory(childId: string | null): UseChildUsageHisto
   const [history, setHistory] = useState<UsageHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fallbackHistory, setFallbackHistory] = useState<UsageHistoryEntry[]>([]);
+  const perPrefixResultsRef = useRef<Record<string, UsageHistoryEntry[]>>({});
+  const [prefixes, setPrefixes] = useState<string[]>([]);
+
+  // Discover alternate identifiers for the child (e.g., deviceId) to match daily docs like {deviceId}_YYYY-MM-DD
+  useEffect(() => {
+    if (!childId) {
+      setPrefixes([]);
+      return;
+    }
+
+    const childRef = doc(db, "children", childId);
+    const unsubscribe = onSnapshot(
+      childRef,
+      (snap) => {
+        const ids = new Set<string>();
+        ids.add(childId);
+        if (snap.exists()) {
+          const data = snap.data() as Record<string, unknown>;
+          const keys = [
+            "deviceId",
+            "androidId",
+            "device",
+            "deviceUID",
+            "deviceUuid",
+            "installId",
+            "installationId",
+            "deviceToken",
+            "childKey",
+          ];
+          keys.forEach((k) => {
+            const v = data[k];
+            if (typeof v === "string" && v.trim().length > 0) {
+              ids.add(v.trim());
+            }
+          });
+        }
+        const list = Array.from(ids);
+        setPrefixes(list);
+      },
+      (err) => {
+        console.error("useChildTelemetry: failed to read child identifiers", err);
+        setPrefixes([childId]);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [childId]);
 
   useEffect(() => {
     if (!childId) {
@@ -555,6 +729,9 @@ export function useChildUsageHistory(childId: string | null): UseChildUsageHisto
     setError(null);
 
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeFallback: (() => void) | undefined;
+    // reset per-prefix cache when dependencies change
+    perPrefixResultsRef.current = {};
 
     try {
       const usageRef = collection(db, "children", childId, "usageHistory");
@@ -584,20 +761,67 @@ export function useChildUsageHistory(childId: string | null): UseChildUsageHisto
       setLoading(false);
     }
 
+    // Fallback: derive history from daily docs in appUsageAggregates/{idPrefix_YYYY-MM-DD}
+    try {
+      const unsubFns: Array<() => void> = [];
+      const runForPrefix = (prefix: string) => {
+        const aggCol = collection(db, "appUsageAggregates");
+        const qy = query(
+          aggCol,
+          where(documentId(), ">=", `${prefix}_`),
+          where(documentId(), "<=", `${prefix}_\uf8ff`),
+          limit(30)
+        );
+        const unsub = onSnapshot(
+          qy,
+          (snapshot) => {
+            const items = snapshot.docs
+              .map((docSnap) => normalizeDailyAggregateDoc(docSnap.id, docSnap.data()))
+              .filter(Boolean) as UsageHistoryEntry[];
+            items.sort((a, b) => b.dateValue - a.dateValue);
+            perPrefixResultsRef.current[prefix] = items;
+            // Merge all prefixes' results
+            const mergedMap = new Map<string, UsageHistoryEntry>();
+            Object.values(perPrefixResultsRef.current).forEach((arr) => {
+              arr.forEach((e) => mergedMap.set(e.date, e));
+            });
+            const merged = Array.from(mergedMap.values()).sort((a, b) => b.dateValue - a.dateValue);
+            setFallbackHistory(merged);
+          },
+          (err) => {
+            console.error("useChildUsageHistory: fallback aggregate listener failed", err);
+          }
+        );
+        unsubFns.push(unsub);
+      };
+
+      const usePrefixes = (prefixes && prefixes.length ? prefixes : [childId!]).slice(0, 3);
+      usePrefixes.forEach(runForPrefix);
+      unsubscribeFallback = () => unsubFns.forEach((fn) => fn());
+    } catch (err) {
+      console.error("useChildUsageHistory: error setting up fallback listener", err);
+    }
+
     return () => {
       if (unsubscribe) {
         unsubscribe();
       }
+      if (unsubscribeFallback) {
+        unsubscribeFallback();
+      }
     };
-  }, [childId]);
+  }, [childId, prefixes]);
 
-  return { history, loading, error };
+  const effectiveHistory = history.length > 0 ? history : fallbackHistory;
+  return { history: effectiveHistory, loading, error };
 }
 
 export function useAppUsageAggregates(childId: string | null): UseAppUsageAggregatesResult {
   const [aggregate, setAggregate] = useState<AppUsageAggregate | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fallbackAggregate, setFallbackAggregate] = useState<AppUsageAggregate | null>(null);
+  const prefixAggUnsubsRef = useRef<Array<() => void>>([]);
 
   useEffect(() => {
     if (!childId) {
@@ -610,6 +834,7 @@ export function useAppUsageAggregates(childId: string | null): UseAppUsageAggreg
     setError(null);
 
     let unsubscribe: (() => void) | undefined;
+    let unsubscribeFallback: (() => void) | undefined;
 
     try {
       const aggregatesRef = doc(db, "appUsageAggregates", childId);
@@ -640,14 +865,110 @@ export function useAppUsageAggregates(childId: string | null): UseAppUsageAggreg
       setLoading(false);
     }
 
+    // Fallback: listen for the most recent daily aggregate doc for possible id prefixes
+    try {
+      const childRef = doc(db, "children", childId);
+      let unsubChild: (() => void) | undefined;
+      unsubChild = onSnapshot(
+        childRef,
+        (snap) => {
+          const ids = new Set<string>();
+          ids.add(childId);
+          if (snap.exists()) {
+            const data = snap.data() as Record<string, unknown>;
+            [
+              "deviceId",
+              "androidId",
+              "device",
+              "deviceUID",
+              "deviceUuid",
+              "installId",
+              "installationId",
+              "deviceToken",
+              "childKey",
+            ].forEach((k) => {
+              const v = data[k];
+              if (typeof v === "string" && v.trim()) ids.add(v.trim());
+            });
+          }
+          const list = Array.from(ids).slice(0, 3);
+
+          // Clean up any previous prefix listeners before wiring new ones
+          if (prefixAggUnsubsRef.current.length) {
+            prefixAggUnsubsRef.current.forEach((fn) => {
+              try { fn(); } catch {}
+            });
+            prefixAggUnsubsRef.current = [];
+          }
+
+          // set up listeners for each
+          const aggCol = collection(db, "appUsageAggregates");
+          list.forEach((prefix) => {
+            const qy = query(
+              aggCol,
+              where(documentId(), ">=", `${prefix}_`),
+              where(documentId(), "<=", `${prefix}_\uf8ff`),
+              limit(50)
+            );
+            const unsub = onSnapshot(
+              qy,
+              (snapshot) => {
+                if (snapshot.empty) {
+                  return;
+                }
+                const candidates = snapshot.docs
+                  .map((d) => ({ id: d.id, entry: normalizeDailyAggregateDoc(d.id, d.data()), snap: d }))
+                  .filter((x) => !!x.entry) as Array<{ id: string; entry: UsageHistoryEntry; snap: any }>;
+                candidates.sort((a, b) => b.entry.dateValue - a.entry.dateValue);
+                const latest = candidates[0];
+                const normalized = aggregateFromDailyDoc(latest.snap.data());
+                setFallbackAggregate((prev) => {
+                  // pick the one with later date/greater totalMinutes
+                  if (!prev || (latest.entry.dateValue > (prev.updatedAt?.getTime() ?? 0))) {
+                    return normalized;
+                  }
+                  return prev;
+                });
+              },
+              (err) => {
+                console.error("useAppUsageAggregates: fallback daily aggregate listener failed", err);
+              }
+            );
+            prefixAggUnsubsRef.current.push(unsub);
+          });
+        },
+        (err) => {
+          console.error("useAppUsageAggregates: failed to read child identifiers", err);
+        }
+      );
+      // Ensure cleanup function unsubscribes both child and prefix listeners
+      unsubscribeFallback = () => {
+        if (unsubChild) {
+          try { unsubChild(); } catch {}
+        }
+        if (prefixAggUnsubsRef.current.length) {
+          prefixAggUnsubsRef.current.forEach((fn) => {
+            try { fn(); } catch {}
+          });
+          prefixAggUnsubsRef.current = [];
+        }
+      };
+    } catch (err) {
+      console.error("useAppUsageAggregates: error setting up fallback daily listener", err);
+    }
+
     return () => {
       if (unsubscribe) {
         unsubscribe();
       }
+      if (unsubscribeFallback) {
+        unsubscribeFallback();
+      }
     };
   }, [childId]);
 
-  return { aggregate, loading, error };
+  const effectiveAggregate = aggregate ?? fallbackAggregate;
+  return { aggregate: effectiveAggregate, loading, error };
 }
 
 export function useChildTelemetry(childId: string | null): UseChildTelemetryResult {

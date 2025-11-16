@@ -375,22 +375,29 @@ export function AppManagement({ childId }: AppManagementProps) {
       dest: "family" | "legacy"
     ) => {
       const colRef = collection(db, ...(colPath as [string, ...string[]]));
+      console.log(`AppManagement: Setting up ${dest} block message listener at path: ${colPath.join('/')}`);
       const unsubscribe = onSnapshot(
         colRef,
         (snapshot) => {
+          console.log(`AppManagement: ${dest} snapshot received with ${snapshot.size} documents`);
           const serverValues: Record<string, string> = {};
           snapshot.forEach((docSnapshot) => {
             const data = docSnapshot.data() as { blockMessage?: unknown };
             const value = typeof data.blockMessage === "string" ? data.blockMessage : "";
             if (value) {
+              console.log(`AppManagement: Found block message for ${docSnapshot.id}: "${value}"`);
               serverValues[docSnapshot.id] = value;
+            } else if (data.blockMessage !== undefined) {
+              console.log(`AppManagement: ${docSnapshot.id} has blockMessage field but it's not a string:`, data.blockMessage);
             }
           });
 
           if (dest === "family") {
             latestFamilyMessagesRef.current = serverValues;
+            console.log(`AppManagement: Updated family messages:`, serverValues);
           } else {
             latestLegacyMessagesRef.current = serverValues;
+            console.log(`AppManagement: Updated legacy messages:`, serverValues);
           }
 
           syncBlockMessageDrafts();
@@ -551,6 +558,8 @@ export function AppManagement({ childId }: AppManagementProps) {
     const docId = getAppControlDocId(app);
     const currentValue = blockMessageDrafts[docId] ?? "";
 
+    console.log(`AppManagement: Saving block message for app ${app.name} (${docId}): "${currentValue}"`);
+
     if (currentValue.length > 120) {
       setBlockMessageErrors((prev) => ({
         ...prev,
@@ -590,11 +599,16 @@ export function AppManagement({ childId }: AppManagementProps) {
           docId
         );
 
+        console.log(`AppManagement: Writing block message to families/${familyId}/children/${childId}/appControls/${docId}`);
         writes.push(
           setDoc(
             familyDocRef,
             {
               blockMessage: trimmedValue,
+              blocked: true, // Ensure the app is marked as blocked when message is saved
+              packageName: app.packageName,
+              appName: app.name,
+              lastUpdatedAt: serverTimestamp(),
             },
             { merge: true }
           )
@@ -606,17 +620,23 @@ export function AppManagement({ childId }: AppManagementProps) {
       }
 
       const legacyDocRef = doc(db, "children", childId, "appControls", docId);
+      console.log(`AppManagement: Writing block message to children/${childId}/appControls/${docId}`);
       writes.push(
         setDoc(
           legacyDocRef,
           {
             blockMessage: trimmedValue,
+            blocked: true, // Ensure the app is marked as blocked when message is saved
+            packageName: app.packageName,
+            appName: app.name,
+            lastUpdatedAt: serverTimestamp(),
           },
           { merge: true }
         )
       );
 
       await Promise.all(writes);
+      console.log(`AppManagement: Block message saved successfully for ${app.name}`);
 
       blockMessageDirtyRef.current[docId] = false;
       setBlockMessageDrafts((prev) => ({
@@ -651,24 +671,74 @@ export function AppManagement({ childId }: AppManagementProps) {
     setUpdatingAppId(app.id);
 
     const nextStatus: AppStatus = nextChecked ? "allowed" : "blocked";
+    const docId = getAppControlDocId(app);
+    const blocked = nextStatus === "blocked";
+
+    console.log(`AppManagement: Toggling app ${app.name} (${docId}) to ${nextStatus} (blocked=${blocked})`);
 
     try {
-      const appDocRef = doc(db, "children", childId, "apps", app.id);
-      const updates: Record<string, any> = {
-        status: nextStatus,
-        isBlocked: nextStatus === "blocked",
-        "status.enforced": nextStatus === "blocked",
-        "status.lastEnforcedChildId": childId,
-        "status.lastEnforcedMethod": "dashboard",
-        "status.lastEnforcedAt": serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
+      const writes: Array<Promise<unknown>> = [];
 
-      if (nextStatus === "allowed") {
-        updates["status.lastEnforcedMethod"] = "dashboard-unblock";
+      // Write to appControls collection for enforcement
+      if (familyId) {
+        const familyDocRef = doc(
+          db,
+          "families",
+          familyId,
+          "children",
+          childId,
+          "appControls",
+          docId
+        );
+
+        console.log(`AppManagement: Writing enforcement to families/${familyId}/children/${childId}/appControls/${docId}`);
+        writes.push(
+          setDoc(
+            familyDocRef,
+            {
+              blocked,
+              packageName: app.packageName,
+              appName: app.name,
+              lastEnforcedAt: serverTimestamp(),
+              lastEnforcedMethod: "dashboard",
+              lastUpdatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          )
+        );
       }
 
-      await updateDoc(appDocRef, updates);
+      // Also write to legacy appControls location
+      const legacyDocRef = doc(db, "children", childId, "appControls", docId);
+      console.log(`AppManagement: Writing enforcement to children/${childId}/appControls/${docId}`);
+      writes.push(
+        setDoc(
+          legacyDocRef,
+          {
+            blocked,
+            packageName: app.packageName,
+            appName: app.name,
+            lastEnforcedAt: serverTimestamp(),
+            lastEnforcedMethod: "dashboard",
+            lastUpdatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        )
+      );
+
+      // Also update the apps collection for UI consistency
+      const appDocRef = doc(db, "children", childId, "apps", app.id);
+      console.log(`AppManagement: Updating usage app at children/${childId}/apps/${app.id}`);
+      writes.push(
+        updateDoc(appDocRef, {
+          isBlocked: blocked,
+          status: nextStatus,
+          updatedAt: serverTimestamp(),
+        })
+      );
+
+      await Promise.all(writes);
+      console.log(`AppManagement: Successfully toggled app ${app.name} to ${nextStatus}`);
     } catch (err) {
       console.error("AppManagement: failed to update app status", err);
       setActionError("We couldn't update that app. Please try again.");
