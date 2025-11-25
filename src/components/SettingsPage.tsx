@@ -62,49 +62,45 @@ export function SettingsPage() {
   useEffect(() => {
     if (!user) return;
 
-    const fetchParentProfile = async () => {
-      try {
-        // Try to get from users collection first
-        const usersRef = collection(db, "users");
-        const q = query(usersRef, where("userId", "==", user.uid));
-        
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-          if (!snapshot.empty) {
-            const userData = snapshot.docs[0].data();
-            const fullName = userData.parentName || userData.name || "";
-            const nameParts = fullName.split(" ");
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            
-            setParentProfile({
-              firstName,
-              lastName,
-              email: userData.email || user.email || "",
-              phone: userData.phone || userData.phoneNumber || "",
-              initials: `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U"
-            });
-          } else {
-            // Fallback to auth email
-            const emailParts = (user.email || "").split("@")[0].split(".");
-            setParentProfile({
-              firstName: emailParts[0] || "",
-              lastName: emailParts[1] || "",
-              email: user.email || "",
-              phone: "",
-              initials: emailParts[0]?.charAt(0).toUpperCase() || "U"
-            });
-          }
-          setLoading(false);
-        });
-
-        return () => unsubscribe();
-      } catch (error) {
-        console.error("Error fetching parent profile:", error);
+    try {
+      // Try to get from users collection first
+      const usersRef = collection(db, "users");
+      const q = query(usersRef, where("userId", "==", user.uid));
+      
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+          const userData = snapshot.docs[0].data();
+          const fullName = userData.parentName || userData.name || "";
+          const nameParts = fullName.split(" ");
+          const firstName = nameParts[0] || "";
+          const lastName = nameParts.slice(1).join(" ") || "";
+          
+          setParentProfile({
+            firstName,
+            lastName,
+            email: userData.email || user.email || "",
+            phone: userData.phone || userData.phoneNumber || "",
+            initials: `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U"
+          });
+        } else {
+          // Fallback to auth email
+          const emailParts = (user.email || "").split("@")[0].split(".");
+          setParentProfile({
+            firstName: emailParts[0] || "",
+            lastName: emailParts[1] || "",
+            email: user.email || "",
+            phone: "",
+            initials: emailParts[0]?.charAt(0).toUpperCase() || "U"
+          });
+        }
         setLoading(false);
-      }
-    };
+      });
 
-    fetchParentProfile();
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error fetching parent profile:", error);
+      setLoading(false);
+    }
   }, [user]);
 
   // Fetch children
