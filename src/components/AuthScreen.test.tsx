@@ -40,19 +40,19 @@ describe("AuthScreen", () => {
     const user = userEvent;
     renderAuth();
 
-    expect(screen.getByText(/Parent Login/i)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome Back/i)).toBeInTheDocument();
 
     await user.click(
       screen.getByRole("button", { name: /Need an account\? Register/i })
     );
 
-    expect(screen.getByText(/Create Parent Account/i)).toBeInTheDocument();
+    expect(screen.getByText(/Get Started/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Parent Name/i)).toBeInTheDocument();
 
     await user.click(
-      screen.getByRole("button", { name: /Have an account\? Sign in/i })
+      screen.getByRole("button", { name: /Already have an account\? Sign in/i })
     );
-    expect(screen.getByText(/Parent Login/i)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome Back/i)).toBeInTheDocument();
   });
 
   it("submits login credentials through Firebase auth", async () => {
