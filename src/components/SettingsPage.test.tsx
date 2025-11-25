@@ -2,19 +2,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 
-// Mock Firebase Auth
+// Mock Firebase Auth - define before using
 const mockAuth = { currentUser: { uid: "test-user-id", email: "test@example.com" } };
 const mockOnAuthStateChanged = jest.fn((callback) => {
   callback(mockAuth.currentUser);
   return jest.fn(); // unsubscribe
 });
 
-jest.mock("firebase/auth", () => ({
-  onAuthStateChanged: (auth: any, callback: any) => mockOnAuthStateChanged(callback),
-  signOut: jest.fn(),
-}));
-
-// Mock Firestore
+// Mock Firestore - define callbacks
 let parentCallback: any = null;
 let childrenCallback: any = null;
 
@@ -70,6 +65,17 @@ const mockOnSnapshot = jest.fn((q, callback) => {
   return jest.fn(); // unsubscribe function
 });
 
+// Now define the mocks
+jest.mock("../config/firebase", () => ({
+  auth: { currentUser: { uid: "test-user-id", email: "test@example.com" } },
+  db: {},
+}));
+
+jest.mock("firebase/auth", () => ({
+  onAuthStateChanged: (auth: any, callback: any) => mockOnAuthStateChanged(callback),
+  signOut: jest.fn(),
+}));
+
 jest.mock("firebase/firestore", () => ({
   collection: jest.fn((db, name) => ({ _collection: name })),
   query: jest.fn((...args) => ({ _query: args })),
@@ -78,11 +84,6 @@ jest.mock("firebase/firestore", () => ({
   doc: jest.fn(),
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
-}));
-
-jest.mock("../config/firebase", () => ({
-  auth: mockAuth,
-  db: {},
 }));
 
 describe("SettingsPage", () => {
