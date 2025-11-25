@@ -1,58 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { SettingsPage } from "./SettingsPage";
 
-// Create proper mock functions
-const mockUnsubscribe = jest.fn();
-const mockOnAuthStateChanged = jest.fn((auth, callback) => {
-  callback({ uid: "test-user-id", email: "test@example.com" });
-  return mockUnsubscribe;
-});
-
-const mockOnSnapshot = jest.fn((query, callback) => {
-  // Simulate async data fetching
-  setTimeout(() => {
-    const queryStr = JSON.stringify(query);
-    
-    if (queryStr.includes("users")) {
-      // Return parent data
-      callback({
-        empty: false,
-        docs: [{
-          data: () => ({
-            parentName: "Michael Parker",
-            email: "michael.parker@email.com"
-          })
-        }]
-      });
-    } else if (queryStr.includes("children")) {
-      // Return children data
-      callback({
-        empty: false,
-        docs: [
-          {
-            id: "child1",
-            data: () => ({
-              childName: "Emma Parker",
-              age: 14,
-              devices: ["device1", "device2"]
-            })
-          },
-          {
-            id: "child2",
-            data: () => ({
-              childName: "Jake Parker",
-              age: 11,
-              devices: ["device1"]
-            })
-          }
-        ]
-      });
-    }
-  }, 0);
-  
-  return mockUnsubscribe;
-});
-
 // Mock Firebase config
 jest.mock("../config/firebase", () => ({
   auth: { currentUser: { uid: "test-user-id", email: "test@example.com" } },
@@ -61,7 +9,10 @@ jest.mock("../config/firebase", () => ({
 
 // Mock Firebase Auth
 jest.mock("firebase/auth", () => ({
-  onAuthStateChanged: mockOnAuthStateChanged,
+  onAuthStateChanged: jest.fn((auth, callback) => {
+    callback({ uid: "test-user-id", email: "test@example.com" });
+    return jest.fn(); // unsubscribe
+  }),
   signOut: jest.fn(),
 }));
 
@@ -70,7 +21,50 @@ jest.mock("firebase/firestore", () => ({
   collection: jest.fn((db, name) => ({ _collection: name })),
   query: jest.fn((...args) => args),
   where: jest.fn((field, op, value) => ({ _where: [field, op, value] })),
-  onSnapshot: mockOnSnapshot,
+  onSnapshot: jest.fn((query, callback) => {
+    // Simulate async data fetching
+    setTimeout(() => {
+      const queryStr = JSON.stringify(query);
+      
+      if (queryStr.includes("users")) {
+        // Return parent data
+        callback({
+          empty: false,
+          docs: [{
+            data: () => ({
+              parentName: "Michael Parker",
+              email: "michael.parker@email.com"
+            })
+          }]
+        });
+      } else if (queryStr.includes("children")) {
+        // Return children data
+        callback({
+          empty: false,
+          docs: [
+            {
+              id: "child1",
+              data: () => ({
+                childName: "Emma Parker",
+                age: 14,
+                devices: ["device1", "device2"]
+              })
+            },
+            {
+              id: "child2",
+              data: () => ({
+                childName: "Jake Parker",
+                age: 11,
+                devices: ["device1"]
+              })
+            }
+          ]
+        });
+      }
+    }, 0);
+    
+    return jest.fn(); // unsubscribe
+  }),
   doc: jest.fn(),
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
