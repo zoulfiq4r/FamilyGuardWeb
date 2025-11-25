@@ -1,10 +1,57 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 
-// Mock variables - must be prefixed with 'mock' to be used in jest.mock()
-let mockParentCallback: any = null;
-let mockChildrenCallback: any = null;
+// Create proper mock functions
+const mockUnsubscribe = jest.fn();
+const mockOnAuthStateChanged = jest.fn((auth, callback) => {
+  callback({ uid: "test-user-id", email: "test@example.com" });
+  return mockUnsubscribe;
+});
+
+const mockOnSnapshot = jest.fn((query, callback) => {
+  // Simulate async data fetching
+  setTimeout(() => {
+    const queryStr = JSON.stringify(query);
+    
+    if (queryStr.includes("users")) {
+      // Return parent data
+      callback({
+        empty: false,
+        docs: [{
+          data: () => ({
+            parentName: "Michael Parker",
+            email: "michael.parker@email.com"
+          })
+        }]
+      });
+    } else if (queryStr.includes("children")) {
+      // Return children data
+      callback({
+        empty: false,
+        docs: [
+          {
+            id: "child1",
+            data: () => ({
+              childName: "Emma Parker",
+              age: 14,
+              devices: ["device1", "device2"]
+            })
+          },
+          {
+            id: "child2",
+            data: () => ({
+              childName: "Jake Parker",
+              age: 11,
+              devices: ["device1"]
+            })
+          }
+        ]
+      });
+    }
+  }, 0);
+  
+  return mockUnsubscribe;
+});
 
 // Mock Firebase config
 jest.mock("../config/firebase", () => ({
@@ -14,69 +61,16 @@ jest.mock("../config/firebase", () => ({
 
 // Mock Firebase Auth
 jest.mock("firebase/auth", () => ({
-  onAuthStateChanged: jest.fn((auth, callback) => {
-    callback({ uid: "test-user-id", email: "test@example.com" });
-    return jest.fn(); // unsubscribe
-  }),
+  onAuthStateChanged: mockOnAuthStateChanged,
   signOut: jest.fn(),
 }));
 
 // Mock Firestore
 jest.mock("firebase/firestore", () => ({
   collection: jest.fn((db, name) => ({ _collection: name })),
-  query: jest.fn((...args) => ({ _query: args })),
+  query: jest.fn((...args) => args),
   where: jest.fn((field, op, value) => ({ _where: [field, op, value] })),
-  onSnapshot: jest.fn((q, callback) => {
-    const queryStr = JSON.stringify(q);
-    
-    if (queryStr.includes("users") || !mockChildrenCallback) {
-      mockParentCallback = callback;
-      // Immediately call with parent data
-      setTimeout(() => {
-        if (mockParentCallback) {
-          mockParentCallback({
-            empty: false,
-            docs: [{
-              data: () => ({
-                parentName: "Michael Parker",
-                email: "michael.parker@email.com"
-              })
-            }]
-          });
-        }
-      }, 0);
-    } else {
-      mockChildrenCallback = callback;
-      // Immediately call with children data
-      setTimeout(() => {
-        if (mockChildrenCallback) {
-          mockChildrenCallback({
-            empty: false,
-            docs: [
-              {
-                id: "child1",
-                data: () => ({
-                  childName: "Emma Parker",
-                  age: 14,
-                  devices: ["device1", "device2"]
-                })
-              },
-              {
-                id: "child2",
-                data: () => ({
-                  childName: "Jake Parker",
-                  age: 11,
-                  devices: ["device1"]
-                })
-              }
-            ]
-          });
-        }
-      }, 0);
-    }
-    
-    return jest.fn(); // unsubscribe function
-  }),
+  onSnapshot: mockOnSnapshot,
   doc: jest.fn(),
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
@@ -87,8 +81,6 @@ describe("SettingsPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockParentCallback = null;
-    mockChildrenCallback = null;
   });
 
   it("renders the top-level headings and helper text", async () => {
