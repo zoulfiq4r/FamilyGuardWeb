@@ -2,9 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 
-// Mock variables that will be used in tests
-let parentCallback: any = null;
-let childrenCallback: any = null;
+// Mock variables - must be prefixed with 'mock' to be used in jest.mock()
+let mockParentCallback: any = null;
+let mockChildrenCallback: any = null;
 
 // Mock Firebase config
 jest.mock("../config/firebase", () => ({
@@ -29,12 +29,12 @@ jest.mock("firebase/firestore", () => ({
   onSnapshot: jest.fn((q, callback) => {
     const queryStr = JSON.stringify(q);
     
-    if (queryStr.includes("users") || !childrenCallback) {
-      parentCallback = callback;
+    if (queryStr.includes("users") || !mockChildrenCallback) {
+      mockParentCallback = callback;
       // Immediately call with parent data
       setTimeout(() => {
-        if (parentCallback) {
-          parentCallback({
+        if (mockParentCallback) {
+          mockParentCallback({
             empty: false,
             docs: [{
               data: () => ({
@@ -46,11 +46,11 @@ jest.mock("firebase/firestore", () => ({
         }
       }, 0);
     } else {
-      childrenCallback = callback;
+      mockChildrenCallback = callback;
       // Immediately call with children data
       setTimeout(() => {
-        if (childrenCallback) {
-          childrenCallback({
+        if (mockChildrenCallback) {
+          mockChildrenCallback({
             empty: false,
             docs: [
               {
@@ -87,8 +87,8 @@ describe("SettingsPage", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    parentCallback = null;
-    childrenCallback = null;
+    mockParentCallback = null;
+    mockChildrenCallback = null;
   });
 
   it("renders the top-level headings and helper text", async () => {
