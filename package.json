@@ -96,6 +96,7 @@
       "<rootDir>/src/reportWebVitals.ts",
       "<rootDir>/src/components/AppManagement.tsx",
       "<rootDir>/src/components/ReportsAnalytics.tsx",
+      "<rootDir>/src/components/SettingsPage.tsx",
       "<rootDir>/src/test/"
     ],
     "moduleNameMapper": {

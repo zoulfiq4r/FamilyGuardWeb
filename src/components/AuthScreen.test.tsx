@@ -172,4 +172,36 @@ describe("AuthScreen", () => {
 
     expect(await screen.findByText(/email exists/i)).toBeInTheDocument();
   });
+
+  it("toggles password visibility in login form", async () => {
+    const user = userEvent;
+    renderAuth();
+
+    const passwordInput = screen.getByLabelText("Password") as HTMLInputElement;
+    expect(passwordInput.type).toBe("password");
+
+    const toggleButtons = screen.getAllByRole("button").filter(btn => 
+      btn.className.includes("absolute right-3")
+    );
+    await user.click(toggleButtons[0]);
+
+    expect(passwordInput.type).toBe("text");
+  });
+
+  it("toggles confirm password visibility in registration form", async () => {
+    const user = userEvent;
+    renderAuth();
+
+    await user.click(screen.getByRole("button", { name: /Need an account\? Register/i }));
+
+    const confirmPasswordInput = screen.getByLabelText(/Confirm Password/i) as HTMLInputElement;
+    expect(confirmPasswordInput.type).toBe("password");
+
+    const toggleButtons = screen.getAllByRole("button").filter(btn => 
+      btn.className.includes("absolute right-3")
+    );
+    await user.click(toggleButtons[1]);
+
+    expect(confirmPasswordInput.type).toBe("text");
+  });
 });
