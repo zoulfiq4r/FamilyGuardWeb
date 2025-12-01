@@ -1,18 +1,24 @@
 import { useState } from "react";
 import { createPairingCode } from "../config/firebase";
+import { FirebaseError } from "firebase/app";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 
+import { auth } from "../config/firebase";
+
 interface PairingCodeGeneratorProps {
-  userId: string;
+  userId?: string; // optional, will fallback to auth.currentUser
 }
 
 export function PairingCodeGenerator({ userId }: PairingCodeGeneratorProps) {
   const [childName, setChildName] = useState("");
   const [pairingCode, setPairingCode] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const effectiveParentId = userId || auth.currentUser?.uid || "";
 
   const handleGenerateCode = async () => {
     if (!childName.trim()) {
@@ -20,13 +26,28 @@ export function PairingCodeGenerator({ userId }: PairingCodeGeneratorProps) {
       return;
     }
 
+    setErrorMessage("");
+
     setLoading(true);
 
     try {
-      const code = await createPairingCode(userId, childName);
+      const code = await createPairingCode(effectiveParentId, childName);
       setPairingCode(code);
     } catch (error: any) {
-      alert("Error generating code: " + error.message);
+      let display = "Unknown error";
+      if (error instanceof FirebaseError) {
+        if (error.code === "permission-denied") {
+          display = "Missing or insufficient permissions. Check Firestore security rules for 'pairingCodes' collection.";
+        } else if (error.code === "unavailable") {
+          display = "Service temporarily unavailable. Try again shortly.";
+        } else {
+          display = error.message;
+        }
+      } else if (error?.message) {
+        display = error.message;
+      }
+      setErrorMessage(display);
+      alert("Error generating code: " + display);
     } finally {
       setLoading(false);
     }
@@ -47,6 +68,11 @@ export function PairingCodeGenerator({ userId }: PairingCodeGeneratorProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
+        {errorMessage && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700" role="alert">
+            {errorMessage}
+          </div>
+        )}
         {!pairingCode ? (
           <div className="space-y-4">
             <div className="space-y-2">
@@ -67,6 +93,11 @@ export function PairingCodeGenerator({ userId }: PairingCodeGeneratorProps) {
             >
               {loading ? "Generating..." : "Generate Pairing Code"}
             </Button>
+            {effectiveParentId === "" && (
+              <p className="text-xs text-red-600 mt-2" role="note">
+                You are not authenticated. Please sign in before generating a pairing code.
+              </p>
+            )}
           </div>
         ) : (
           <div className="text-center space-y-6">

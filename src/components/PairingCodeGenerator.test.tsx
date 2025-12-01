@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { FirebaseError } from "firebase/app";
 import userEvent from "@testing-library/user-event";
 import { PairingCodeGenerator } from "./PairingCodeGenerator";
 
@@ -84,6 +85,39 @@ describe("PairingCodeGenerator", () => {
       expect(alertSpy).toHaveBeenCalledWith(
         "Error generating code: Firestore down"
       )
+    );
+
+    alertSpy.mockRestore();
+  });
+
+  it("shows permission denied guidance when Firestore rejects with permission-denied", async () => {
+    const user = userEvent;
+    const alertSpy = jest.spyOn(window, "alert").mockImplementation(() => {});
+    const firebaseErr = new FirebaseError(
+      "permission-denied",
+      "Missing or insufficient permissions.",
+      { service: "firestore" }
+    );
+    mockCreatePairingCode.mockRejectedValueOnce(firebaseErr);
+
+    setup();
+    await user.type(screen.getByLabelText(/Child's Name/i), "Noah");
+    await user.click(
+      screen.getByRole("button", { name: /Generate Pairing Code/i })
+    );
+
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalled();
+    });
+
+    expect(alertSpy.mock.calls[0][0]).toMatch(
+      /Error generating code: Missing or insufficient permissions\. Check Firestore security rules/
+    );
+    // Inline error message should appear
+    expect(
+      screen.getByRole("alert")
+    ).toHaveTextContent(
+      /Missing or insufficient permissions\. Check Firestore security rules/
     );
 
     alertSpy.mockRestore();

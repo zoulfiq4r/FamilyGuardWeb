@@ -9,7 +9,8 @@ import {
   Menu,
   X,
   Link,
-  Users
+  Users,
+  FileImage
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback } from "./ui/avatar";
@@ -51,6 +52,7 @@ export function DashboardLayout({ children, activeTab, onTabChange, selectedChil
     { id: "apps", label: "Apps", icon: Smartphone },
     { id: "pairing", label: "Pair Device", icon: Link },
     { id: "reports", label: "Reports", icon: BarChart3 },
+    { id: "content", label: "Content AI", icon: FileImage },
     { id: "settings", label: "Settings", icon: Settings },
   ];
 

@@ -1,4 +1,4 @@
-# FamilyGuard Parent Dashboard
+w# FamilyGuard Parent Dashboard
 
 [![codecov](https://codecov.io/github/zoulfiq4r/FamilyGuardWeb/graph/badge.svg?token=Os1XSVMQc7)](https://codecov.io/github/zoulfiq4r/FamilyGuardWeb)
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
@@ -193,12 +193,26 @@ npm test -- --coverage
 4. Ensure Firebase Auth authorized domains include your production hostname.
 5. Review Firestore security rules before inviting real users.
 
+### Firestore Security Rules
+
+This repo includes a `firestore.rules` file with a minimal secure configuration for the `pairingCodes` collection. To apply:
+
+```bash
+npm install -g firebase-tools # if not already installed
+firebase login
+firebase init firestore       # (skip if already initialized; do NOT overwrite existing data)
+firebase deploy --only firestore:rules
+```
+
+Ensure your local CLI is pointed at the same Firebase project whose credentials you use in `src/config/firebase.ts` or `.env.local`. After deploying, test rule behavior using the Firestore Rules Simulator.
+
 ## Troubleshooting
 
 - **No children appear after pairing:** Confirm the mobile app creates a document in `children` with the `parentId` that matches the authenticated parent UID. Logs are printed in `ChildSelector`.
 - **App list stays empty:** Device must push documents to `children/{childId}/apps`. Watch browser console logs from `AppManagement` to validate Firestore paths.
 - **Location map is blank:** Ensure the device writes to `children/{childId}/locations` _or_ embeds `currentLocation` on the child doc with `latitude`, `longitude`, `timestamp`.
 - **Auth errors in development:** Double-check that the Firebase config matches your project and that the domain (localhost) is authorized under Firebase Auth.
+- **"Missing or insufficient permissions" when generating pairing code:** Deploy the included `firestore.rules` or add a rule permitting authenticated parents to create docs in `pairingCodes` (see Firestore Security Rules section above).
 - **Styling looks off:** Tailwind relies on PostCSS + CRA. Restart `npm start` after editing `tailwind.config.js`.
 
 ## Future Improvements

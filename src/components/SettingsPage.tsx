@@ -60,14 +60,20 @@ export function SettingsPage() {
 
   // Fetch parent profile
   useEffect(() => {
-    if (!user) return;
+    // If there's no authenticated user, stop loading and show fallback immediately
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
       // Try to get from users collection first
       const usersRef = collection(db, "users");
       const q = query(usersRef, where("userId", "==", user.uid));
       
-      const unsubscribe = onSnapshot(q, (snapshot) => {
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
         if (!snapshot.empty) {
           const userData = snapshot.docs[0].data();
           const fullName = userData.parentName || userData.name || "";
@@ -94,7 +100,12 @@ export function SettingsPage() {
           });
         }
         setLoading(false);
-      });
+        },
+        (error) => {
+          console.error("Firestore snapshot error (parent profile):", error);
+          setLoading(false);
+        }
+      );
 
       return () => unsubscribe();
     } catch (error) {

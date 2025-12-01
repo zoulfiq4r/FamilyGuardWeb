@@ -10,6 +10,7 @@ import { ReportsAnalytics } from "./components/ReportsAnalytics";
 import { SettingsPage } from "./components/SettingsPage";
 import { PairingCodeGenerator } from "./components/PairingCodeGenerator";
 import { ChildSelector } from "./components/ChildSelector";
+import { ContentUpload } from "./components/ContentUpload";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -67,6 +68,7 @@ export default function App() {
         {activeTab === "reports" && selectedChild && <ReportsAnalytics childId={selectedChild} />}
         {activeTab === "settings" && <SettingsPage />}
         {activeTab === "pairing" && <PairingCodeGenerator userId={user.uid} />}
+        {activeTab === "content" && <ContentUpload />}
       </DashboardLayout>
     </div>
   );
