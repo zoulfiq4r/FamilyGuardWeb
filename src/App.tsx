@@ -10,7 +10,7 @@ import { ReportsAnalytics } from "./components/ReportsAnalytics";
 import { SettingsPage } from "./components/SettingsPage";
 import { PairingCodeGenerator } from "./components/PairingCodeGenerator";
 import { ChildSelector } from "./components/ChildSelector";
-import { ContentUpload } from "./components/ContentUpload";
+import { ContentMonitoring } from "./components/ContentMonitoring";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,7 +43,7 @@ export default function App() {
   }
 
   // Show child selector if no child is selected (except when on pairing or settings page)
-  const tabsRequiringChild = ["dashboard", "location", "apps", "reports"];
+  const tabsRequiringChild = ["dashboard", "location", "apps", "reports", "content"];
   if (!selectedChild && tabsRequiringChild.includes(activeTab)) {
     return (
       <ChildSelector
@@ -68,7 +68,9 @@ export default function App() {
         {activeTab === "reports" && selectedChild && <ReportsAnalytics childId={selectedChild} />}
         {activeTab === "settings" && <SettingsPage />}
         {activeTab === "pairing" && <PairingCodeGenerator userId={user.uid} />}
-        {activeTab === "content" && <ContentUpload />}
+        {activeTab === "content" && selectedChild && (
+          <ContentMonitoring childId={selectedChild} parentId={user.uid} />
+        )}
       </DashboardLayout>
     </div>
   );

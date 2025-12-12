@@ -54,7 +54,7 @@ cp .env.example .env
 # Configure Firebase credentials in .env
 npm start
 ```
-
+$env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\user\parent-dashboard\google-credentials.json"
 ### Deployment
 ```bash
 firebase deploy --only firestore:rules
