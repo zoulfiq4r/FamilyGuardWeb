@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="FamilyGuard icon">
+  <defs>
+    <linearGradient id="fgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0f6fff" />
+      <stop offset="100%" stop-color="#0ac1a7" />
+    </linearGradient>
+  </defs>
+  <path fill="url(#fgGradient)" d="M256 32l170 64v140c0 73-47 142-121 186l-49 29-49-29C133 378 86 309 86 236V96l170-64z"/>
+  <path fill="#f7fbff" d="M256 124c-54 0-98 44-98 98v52c0 9 7 16 16 16h164c9 0 16-7 16-16v-52c0-54-44-98-98-98zm-42 108c0-23 19-42 42-42s42 19 42 42v20h-84v-20zm-28 72c0 14 12 26 26 26h88c14 0 26-12 26-26v-12H186v12z"/>
+</svg>
