@@ -164,29 +164,7 @@ export function ChildSelector({ parentId, onSelectChild, onCreateNew }: ChildSel
               </p>
               <p className="text-sm text-gray-400 mb-6">
                 After entering the pairing code in the mobile app, the child should appear here automatically.
-                If it doesn't appear, check the browser console (F12) for debug logs.
               </p>
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg text-left max-w-2xl mx-auto">
-                <p className="text-xs font-semibold text-blue-800 mb-2">For Mobile App Developers:</p>
-                <p className="text-xs text-blue-700 mb-2">
-                  When the user enters the pairing code, the mobile app should:
-                </p>
-                <ol className="text-xs text-blue-700 list-decimal list-inside space-y-1 mb-3">
-                  <li>Find the pairing code document in the <code className="bg-blue-100 px-1 rounded">pairingCodes</code> collection</li>
-                  <li>Extract the <code className="bg-blue-100 px-1 rounded">parentId</code> and <code className="bg-blue-100 px-1 rounded">childName</code> from the pairing code document</li>
-                  <li>Mark the pairing code as used: <code className="bg-blue-100 px-1 rounded">isUsed: true</code></li>
-                  <li><strong>Create a child document</strong> in the <code className="bg-blue-100 px-1 rounded">children</code> collection with:
-                    <ul className="list-disc list-inside ml-4 mt-1">
-                      <li><code>parentId</code>: "{parentId}" (from pairing code)</li>
-                      <li><code>name</code>: child's name (from pairing code or user input)</li>
-                      <li><code>createdAt</code>: serverTimestamp()</li>
-                    </ul>
-                  </li>
-                </ol>
-                <p className="text-xs text-blue-600 mt-3">
-                  Check browser console (F12) to see what parentId is being queried: <code className="bg-blue-100 px-1 rounded">{parentId}</code>
-                </p>
-              </div>
               {onCreateNew && (
                 <Button onClick={onCreateNew} className="bg-blue-500 hover:bg-blue-600">
                   Go to Pairing
