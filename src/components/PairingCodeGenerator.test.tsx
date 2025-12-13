@@ -8,6 +8,11 @@ const mockCreatePairingCode = jest.fn();
 jest.mock("../config/firebase", () => ({
   createPairingCode: (...args: Parameters<typeof mockCreatePairingCode>) =>
     mockCreatePairingCode(...args),
+  auth: {
+    currentUser: {
+      uid: "auth-user-123",
+    },
+  },
 }));
 
 describe("PairingCodeGenerator", () => {
@@ -121,5 +126,25 @@ describe("PairingCodeGenerator", () => {
     );
 
     alertSpy.mockRestore();
+  });
+
+  it("falls back to currentUser.uid when userId prop is not provided", async () => {
+    const user = userEvent;
+    mockCreatePairingCode.mockResolvedValueOnce("XYZ789");
+
+    render(<PairingCodeGenerator />);
+    await user.type(screen.getByLabelText(/Child's Name/i), "Sofia");
+    await user.click(
+      screen.getByRole("button", { name: /Generate Pairing Code/i })
+    );
+
+    await waitFor(() =>
+      expect(mockCreatePairingCode).toHaveBeenCalledWith(
+        "auth-user-123",
+        "Sofia"
+      )
+    );
+
+    expect(await screen.findByText("XYZ789")).toBeInTheDocument();
   });
 });
