@@ -7,6 +7,7 @@ import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Shield, Mail, Lock, User, Eye, EyeOff } from "lucide-react";
+import { getAuthErrorMessage } from "../utils/authErrors";
 
 export function AuthScreen() {
   const [isLogin, setIsLogin] = useState(true);
@@ -26,7 +27,7 @@ export function AuthScreen() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      setError(err.message);
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -58,7 +59,7 @@ export function AuthScreen() {
         createdAt: serverTimestamp()
       });
     } catch (err: any) {
-      setError(err.message);
+      setError(getAuthErrorMessage(err));
     } finally {
       setLoading(false);
     }

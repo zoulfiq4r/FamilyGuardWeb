@@ -11,12 +11,17 @@ import { SettingsPage } from "./components/SettingsPage";
 import { PairingCodeGenerator } from "./components/PairingCodeGenerator";
 import { ChildSelector } from "./components/ChildSelector";
 import { ContentMonitoring } from "./components/ContentMonitoring";
+import { useSessionTimeout } from "./hooks/useSessionTimeout";
+import { SessionWarningModal } from "./components/SessionWarningModal";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [selectedChild, setSelectedChild] = useState<string | null>(null);
+
+  // Use session timeout hook
+  useSessionTimeout(!!user);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -56,6 +61,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <SessionWarningModal />
       <DashboardLayout 
         activeTab={activeTab} 
         onTabChange={setActiveTab}
