@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth } from "./config/firebase";
 import { AuthScreen } from "./components/AuthScreen";
 import { DashboardLayout } from "./components/DashboardLayout";
@@ -14,6 +14,9 @@ import { ContentMonitoring } from "./components/ContentMonitoring";
 import { useSessionTimeout } from "./hooks/useSessionTimeout";
 import { SessionWarningModal } from "./components/SessionWarningModal";
 
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const LAST_ACTIVE_KEY = 'session:lastActiveMs';
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +27,35 @@ export default function App() {
   useSessionTimeout(!!user);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Check if session expired before setting user
+        const lastActiveRaw = localStorage.getItem(LAST_ACTIVE_KEY);
+        if (lastActiveRaw) {
+          const lastActive = Number.parseInt(lastActiveRaw, 10);
+          const now = Date.now();
+          
+          if (Number.isFinite(lastActive) && now - lastActive >= SESSION_TIMEOUT_MS) {
+            // Session expired - force logout
+            console.warn('Session expired during page load - logging out');
+            try {
+              await signOut(auth);
+              localStorage.removeItem(LAST_ACTIVE_KEY);
+            } catch (error) {
+              console.error('Error signing out expired session:', error);
+            }
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        }
+        // Update last active timestamp
+        localStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+      } else {
+        // Clear last active on logout
+        localStorage.removeItem(LAST_ACTIVE_KEY);
+      }
+      
       setUser(currentUser);
       setLoading(false);
     });
