@@ -185,32 +185,6 @@ export function LiveLocationMap({ childId, childName }: LiveLocationMapProps) {
           <MapPin className="w-12 h-12 mx-auto mb-4 text-gray-400" />
           <p className="font-semibold mb-2">No location data available yet.</p>
           <p className="text-sm mt-2 mb-4">Location will appear once the device sends its first update.</p>
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg text-left max-w-md mx-auto">
-            <p className="text-xs font-semibold text-blue-800 mb-2">For Developers:</p>
-            <p className="text-xs text-blue-700 mb-2">
-              Write location updates either to
-              <code className="bg-blue-100 px-1 mx-1 rounded">{dynamicLocationsPath}</code>
-              or embed the latest point under
-              <code className="bg-blue-100 px-1 mx-1 rounded">{dynamicCurrentLocationPath}</code>
-              with:
-            </p>
-            <p className="text-[10px] text-blue-600 mb-2">
-              Demo child shortcuts for quick testing:
-              <code className="bg-blue-100 px-1 mx-1 rounded">{demoLocationsPath}</code>
-              or
-              <code className="bg-blue-100 px-1 mx-1 rounded">{demoCurrentLocationPath}</code>
-            </p>
-            <ul className="text-xs text-blue-700 list-disc list-inside space-y-1">
-              <li><code>childId</code>: "{DEMO_CHILD_ID}"</li>
-              <li><code>latitude</code>: number</li>
-              <li><code>longitude</code>: number</li>
-              <li><code>timestamp</code>: Firestore Timestamp</li>
-              <li><code>accuracy</code>: number (optional)</li>
-            </ul>
-            <p className="text-xs text-blue-600 mt-3">
-              Check browser console (F12) for debug logs.
-            </p>
-          </div>
         </CardContent>
       </Card>
     );
